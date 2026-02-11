@@ -5,7 +5,7 @@
 <!ENTITY version "2026.02.11">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/ghzgod/signal-notification-unraid/main/signal-notification.plg">
 <!ENTITY source "/boot/config/plugins/&name;/&name;">
-<!ENTITY MD5 "f7b60f93dcf4ccc0118c291967d3c6b5">
+<!ENTITY MD5 "690818d95304f50a129af3ed93a02a3d">
 ]>
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" min="6.12.0" support="https://github.com/ghzgod/signal-notification-unraid/issues">
 
