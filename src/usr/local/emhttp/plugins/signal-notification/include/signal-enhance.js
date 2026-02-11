@@ -32,8 +32,9 @@ $(function() {
   }
 
   // --- Add our buttons to the bottom row alongside Apply/Done ---
-  var bottomDd = form.find('dl:last dd');
-  bottomDd.css('text-align', 'center');
+  var bottomDl = form.find('dl:last');
+  bottomDl.css('text-align', 'center');
+  var bottomDd = bottomDl.find('dd');
   var testConnBtn = $('<input type="button" value="Test Connection">');
   var loadBtn = $('<input type="button" value="Load Groups">');
   var sendTestBtn = $('<input type="button" value="Send Test">');
