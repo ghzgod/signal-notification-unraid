@@ -1,0 +1,183 @@
+Menu="Notifications:4"
+Title="Signal"
+Tag="comment"
+---
+<?PHP
+/* Signal Notification Plugin - Settings Page
+ *
+ * This page manages Signal-CLI connection settings and group selection
+ * for the Signal notification agent.
+ */
+
+$cfgFile = '/boot/config/plugins/signal-notification/signal.cfg';
+$cfg = @parse_ini_file($cfgFile) ?: [];
+$signalUrl = $cfg['SIGNAL_CLI_URL'] ?? 'http://localhost:8085';
+$groupId = $cfg['GROUP_ID'] ?? '';
+$groupName = $cfg['GROUP_NAME'] ?? '';
+?>
+<link type="text/css" rel="stylesheet" href="<?autov('/webGui/styles/jquery.ui.css')?>">
+<style>
+.signal-status { display:inline-block; padding:2px 8px; border-radius:3px; font-size:0.9em; margin-left:8px; }
+.signal-status.connected { background:#4CAF50; color:#fff; }
+.signal-status.disconnected { background:#f44336; color:#fff; }
+.signal-status.testing { background:#FF9800; color:#fff; }
+.signal-group-row { display:flex; align-items:center; gap:8px; margin:4px 0; }
+.signal-group-row select { min-width:300px; }
+#signal-new-group { display:none; margin-top:8px; }
+#signal-new-group input { margin-right:4px; }
+#signal-feedback { margin-top:12px; padding:8px; display:none; border-radius:3px; }
+#signal-feedback.success { display:block; background:#E8F5E9; color:#2E7D32; border:1px solid #A5D6A7; }
+#signal-feedback.error { display:block; background:#FFEBEE; color:#C62828; border:1px solid #EF9A9A; }
+</style>
+
+<script>
+var signalApiUrl = '/plugins/signal-notification/include/SignalGroupAPI.php';
+
+function signalFeedback(msg, type) {
+  var el = $('#signal-feedback');
+  el.removeClass('success error').addClass(type).text(msg).show();
+  if (type === 'success') setTimeout(function(){ el.fadeOut(); }, 5000);
+}
+
+function signalTestConnection() {
+  var url = $('input[name="SIGNAL_CLI_URL"]').val().trim();
+  if (!url) { signalFeedback('Please enter a Signal-CLI API URL.', 'error'); return; }
+  $('#signal-conn-status').removeClass('connected disconnected').addClass('testing').text('Testing...');
+  $.post(signalApiUrl, { action:'test', url:url }, function(data) {
+    if (data.success) {
+      $('#signal-conn-status').removeClass('testing').addClass('connected').text('Connected');
+      signalFeedback(data.message, 'success');
+      signalLoadGroups();
+    } else {
+      $('#signal-conn-status').removeClass('testing').addClass('disconnected').text('Disconnected');
+      signalFeedback(data.message || 'Connection failed', 'error');
+    }
+  }, 'json').fail(function() {
+    $('#signal-conn-status').removeClass('testing').addClass('disconnected').text('Error');
+    signalFeedback('Failed to reach Unraid backend.', 'error');
+  });
+}
+
+function signalLoadGroups() {
+  var url = $('input[name="SIGNAL_CLI_URL"]').val().trim();
+  var sel = $('#signal-group-select');
+  sel.empty().append('<option value="">Loading groups...</option>');
+  $.post(signalApiUrl, { action:'listGroups', url:url }, function(data) {
+    sel.empty();
+    if (data.error) {
+      sel.append('<option value="">Error: ' + data.error + '</option>');
+      return;
+    }
+    sel.append('<option value="">-- Select a group --</option>');
+    var currentGroup = '<?=addslashes($groupId)?>';
+    $.each(data.groups || [], function(i, g) {
+      var opt = $('<option>').val(g.id).text(g.name);
+      if (g.id === currentGroup) opt.attr('selected', true);
+      sel.append(opt);
+    });
+    sel.append('<option value="__new__">+ Create new group...</option>');
+  }, 'json').fail(function() {
+    sel.empty().append('<option value="">Failed to load groups</option>');
+  });
+}
+
+function signalGroupChanged() {
+  var val = $('#signal-group-select').val();
+  if (val === '__new__') {
+    $('#signal-new-group').slideDown();
+  } else {
+    $('#signal-new-group').slideUp();
+  }
+}
+
+function signalCreateGroup() {
+  var url = $('input[name="SIGNAL_CLI_URL"]').val().trim();
+  var name = $('#signal-new-group-name').val().trim();
+  var members = $('#signal-new-group-members').val().trim();
+  if (!name) { signalFeedback('Please enter a group name.', 'error'); return; }
+  $.post(signalApiUrl, { action:'createGroup', url:url, name:name, members:members }, function(data) {
+    if (data.error) {
+      signalFeedback('Failed to create group: ' + data.error, 'error');
+    } else {
+      signalFeedback('Group "' + name + '" created!', 'success');
+      $('#signal-new-group-name').val('');
+      $('#signal-new-group-members').val('');
+      // Reload groups and select the new one
+      signalLoadGroups();
+      setTimeout(function() {
+        $('#signal-group-select').val(data.groupId);
+        signalGroupChanged();
+      }, 500);
+    }
+  }, 'json');
+}
+
+function signalSendTest() {
+  var url = $('input[name="SIGNAL_CLI_URL"]').val().trim();
+  var gid = $('#signal-group-select').val();
+  if (!gid || gid === '__new__') { signalFeedback('Please select a group first.', 'error'); return; }
+  $.post(signalApiUrl, { action:'sendTest', url:url, groupId:gid }, function(data) {
+    if (data.success) {
+      signalFeedback(data.message, 'success');
+    } else {
+      signalFeedback(data.error || data.message || 'Test failed', 'error');
+    }
+  }, 'json');
+}
+
+function signalSaveConfig(form) {
+  var gid = $('#signal-group-select').val();
+  if (gid === '__new__') gid = '';
+  var gname = $('#signal-group-select option:selected').text();
+  if (!gid) gname = '';
+  $('input[name="GROUP_ID"]').val(gid);
+  $('input[name="GROUP_NAME"]').val(gname);
+}
+
+$(function() {
+  // Auto-test connection and load groups on page load if URL is configured
+  var url = $('input[name="SIGNAL_CLI_URL"]').val().trim();
+  if (url) {
+    signalTestConnection();
+  }
+});
+</script>
+
+<form markdown="1" method="POST" action="/update.php" target="progressFrame" onsubmit="signalSaveConfig(this)">
+<input type="hidden" name="#file" value="<?=$cfgFile?>">
+<input type="hidden" name="#command" value="">
+<input type="hidden" name="GROUP_ID" value="<?=htmlspecialchars($groupId)?>">
+<input type="hidden" name="GROUP_NAME" value="<?=htmlspecialchars($groupName)?>">
+
+_(Signal-CLI API URL)_:
+: <input type="text" name="SIGNAL_CLI_URL" value="<?=htmlspecialchars($signalUrl)?>" placeholder="http://192.168.1.100:8085" style="width:300px">
+  <input type="button" value="_(Test Connection)_" onclick="signalTestConnection()">
+  <span id="signal-conn-status" class="signal-status disconnected">Not tested</span>
+
+> URL of the signal-cli REST API. This is typically `http://<your-server-ip>:8085` if running the
+> [asamk/signal-cli](https://github.com/AsamK/signal-cli) Docker container with port 8085 mapped to the container's port 8080.
+> The plugin communicates via the JSON-RPC endpoint at `/api/v1/rpc`.
+
+_(Signal Group)_:
+: <div class="signal-group-row">
+  <select id="signal-group-select" onchange="signalGroupChanged()">
+  <option value="">-- Test connection first --</option>
+  </select>
+  <input type="button" value="_(Send Test)_" onclick="signalSendTest()">
+  <input type="button" value="_(Refresh Groups)_" onclick="signalLoadGroups()">
+  </div>
+  <div id="signal-new-group">
+  <strong>_(Create New Group)_:</strong><br>
+  <input type="text" id="signal-new-group-name" placeholder="Group name" style="width:200px">
+  <input type="text" id="signal-new-group-members" placeholder="+1234567890,+0987654321 (optional)" style="width:280px" title="Comma-separated phone numbers to invite">
+  <input type="button" value="_(Create)_" onclick="signalCreateGroup()">
+  </div>
+
+> Select the Signal group that will receive Unraid notifications. You can also create a new group directly from here.
+> Members can be added by their phone number (in international format, e.g. +1234567890).
+
+<div id="signal-feedback"></div>
+
+&nbsp;
+: <input type="submit" value="_(Apply)_"><input type="button" value="_(Done)_" onclick="done()">
+</form>
