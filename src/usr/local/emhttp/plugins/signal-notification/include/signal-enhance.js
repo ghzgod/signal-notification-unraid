@@ -12,34 +12,43 @@ $(function() {
 
   var apiUrl = '/plugins/signal-notification/include/SignalGroupAPI.php';
 
-  // --- Add Test Connection button and status below URL input ---
-  var testBtn = $('<input type="button" value="Test Connection" style="margin-left:8px;">');
-  var statusDiv = $('<div class="signal-conn-result" style="margin-top:4px;"></div>');
-  urlInput.after(testBtn);
-  urlInput.closest('dd').append(statusDiv);
+  // --- Status message area at bottom of form (before Apply/Done buttons) ---
+  var feedbackDiv = $('<dl><dt>&nbsp;</dt><dd><div id="signal-feedback" style="min-height:1em;"></div></dd></dl>');
+  form.find('dl:last').before(feedbackDiv);
+  var feedback = feedbackDiv.find('#signal-feedback');
 
-  function setStatus(msg, ok) {
-    statusDiv.text(msg).removeClass('green red').addClass(ok ? 'green' : 'red');
+  function showFeedback(msg, ok) {
+    feedback.text(msg).removeClass('green red').addClass(ok ? 'green' : 'red');
   }
+  function clearFeedback() {
+    feedback.text('').removeClass('green red');
+  }
+
+  // --- Add Test Connection button next to URL input ---
+  var testBtn = $('<input type="button" value="Test Connection" style="margin-left:8px;">');
+  urlInput.after(testBtn);
 
   testBtn.on('click', function() {
     var url = urlInput.val().trim();
-    if (!url) { setStatus('Enter URL first', false); return; }
-    statusDiv.removeClass('green red').text('Testing...');
+    if (!url) { showFeedback('Enter URL first', false); return; }
+    clearFeedback();
+    showFeedback('Testing connection...', false);
+    feedback.removeClass('red');
     $.post(apiUrl, {action:'test', url:url}, function(data) {
       if (data.success) {
-        setStatus(data.message, true);
+        showFeedback(data.message, true);
         loadGroups();
       } else {
-        setStatus(data.message || 'Connection failed', false);
+        showFeedback(data.message || 'Connection failed', false);
       }
     }, 'json').fail(function() {
-      setStatus('Failed to reach Unraid backend', false);
+      showFeedback('Failed to reach Unraid backend', false);
     });
   });
 
   // --- Replace GROUP_ID text input with select dropdown ---
   var currentVal = gidInput.val();
+  var gidDd = gidInput.closest('dd');
   var select = $('<select name="GROUP_ID" class="variable" style="min-width:300px;"></select>');
   if (currentVal) {
     select.append($('<option>').val(currentVal).text(currentVal + ' (saved)'));
@@ -51,29 +60,24 @@ $(function() {
   var loadBtn = $('<input type="button" value="Load Groups" style="margin-left:8px;">');
   var sendTestBtn = $('<input type="button" value="Send Test" style="margin-left:4px;">');
   var createBtn = $('<input type="button" value="New Group" style="margin-left:4px;">');
-  var groupStatusDiv = $('<div class="signal-group-result" style="margin-top:4px;"></div>');
   select.after(createBtn).after(sendTestBtn).after(loadBtn);
-  select.parent().append(groupStatusDiv);
-
-  function setGroupStatus(msg, ok) {
-    groupStatusDiv.text(msg).removeClass('green red').addClass(ok ? 'green' : 'red');
-    if (ok) setTimeout(function(){ groupStatusDiv.fadeOut(function(){ $(this).text('').removeClass('green red').show(); }); }, 5000);
-  }
 
   sendTestBtn.on('click', function() {
     var url = urlInput.val().trim();
     var gid = select.val();
-    if (!url) { setGroupStatus('Enter Signal-CLI URL first', false); return; }
-    if (!gid) { setGroupStatus('Select a group first', false); return; }
-    groupStatusDiv.removeClass('green red').text('Sending...');
+    if (!url) { showFeedback('Enter Signal-CLI URL first', false); return; }
+    if (!gid) { showFeedback('Select a group first', false); return; }
+    clearFeedback();
+    showFeedback('Sending test message...', false);
+    feedback.removeClass('red');
     $.post(apiUrl, {action:'sendTest', url:url, groupId:gid}, function(data) {
       if (data.success) {
-        setGroupStatus(data.message, true);
+        showFeedback(data.message, true);
       } else {
-        setGroupStatus(data.error || data.message || 'Send failed', false);
+        showFeedback(data.error || data.message || 'Send failed', false);
       }
     }, 'json').fail(function() {
-      setGroupStatus('Failed to reach backend', false);
+      showFeedback('Failed to reach backend', false);
     });
   });
 
@@ -84,7 +88,7 @@ $(function() {
     '<input type="button" value="Create" id="signal-create-go">' +
     '<input type="button" value="Cancel" id="signal-create-cancel" style="margin-left:4px;">' +
     '</div>');
-  select.parent().append(createDiv);
+  gidDd.append(createDiv);
 
   createBtn.on('click', function() { createDiv.slideToggle(); });
   createDiv.find('#signal-create-cancel').on('click', function() { createDiv.slideUp(); });
@@ -95,8 +99,9 @@ $(function() {
     if (!name) return;
     $.post(apiUrl, {action:'createGroup', url:url, name:name, members:members}, function(data) {
       if (data.error) {
-        alert('Failed: ' + data.error);
+        showFeedback('Failed to create group: ' + data.error, false);
       } else {
+        showFeedback('Group "' + name + '" created!', true);
         createDiv.find('#signal-new-name').val('');
         createDiv.find('#signal-new-members').val('');
         createDiv.slideUp();
@@ -135,7 +140,7 @@ $(function() {
   if (initUrl) {
     $.post(apiUrl, {action:'test', url:initUrl}, function(data) {
       if (data.success) {
-        setStatus(data.message, true);
+        showFeedback(data.message, true);
         loadGroups();
       }
     }, 'json');
