@@ -2,6 +2,8 @@
   <Agent>
     <Name>Signal</Name>
     <Variables>
+      <Variable Help="The full URL of the signal-cli JSON-RPC API. Typically http://YOUR-SERVER-IP:8085 if running the asamk/signal-cli Docker container with port 8085 mapped to 8080. [script src='/plugins/signal-notification/include/signal-enhance.js'][/script]" Desc="Signal-CLI API URL" Default="http://localhost:8085">SIGNAL_CLI_URL</Variable>
+      <Variable Help="The base64-encoded group ID. Use the Load Groups button to populate this from your signal-cli instance, or paste the group ID manually." Desc="Signal Group ID" Default="">GROUP_ID</Variable>
       <Variable Help="Specify the fields which are included in the title of the notification." Desc="Notification Title" Default="$SUBJECT">TITLE</Variable>
       <Variable Help="Specify the fields which are included in the message body of the notification." Desc="Notification Message" Default="$DESCRIPTION">MESSAGE</Variable>
     </Variables>
@@ -14,14 +16,6 @@
 
       SCRIPTNAME=$(basename "$0")
       LOG="/var/log/notify_${SCRIPTNAME%.*}"
-
-      CFG="/boot/config/plugins/signal-notification/signal.cfg"
-      if [[ ! -f "$CFG" ]]; then
-        echo "$(date) Signal notification plugin not configured. Please visit Settings > Notifications > Signal to set up." >> "$LOG"
-        exit 1
-      fi
-
-      source "$CFG"
 
       if [[ -z "$SIGNAL_CLI_URL" ]] || [[ -z "$GROUP_ID" ]]; then
         echo "$(date) Signal-CLI URL or Group ID not configured." >> "$LOG"

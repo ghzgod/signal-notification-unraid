@@ -11,8 +11,26 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $url = trim($_POST['url'] ?? '');
 
 if (empty($url)) {
+    // Try config file first, then agent script
     $cfg = @parse_ini_file('/boot/config/plugins/signal-notification/signal.cfg');
     $url = $cfg['SIGNAL_CLI_URL'] ?? '';
+    if (empty($url)) {
+        // Read from agent script (between ###### markers)
+        foreach (['/boot/config/plugins/dynamix/notifications/agents/Signal.sh',
+                  '/boot/config/plugins/dynamix/notifications/agents-disabled/Signal.sh'] as $agentFile) {
+            if (is_file($agentFile)) {
+                preg_match('/#{6,}(.*?)#{6,}/s', file_get_contents($agentFile), $m);
+                if (isset($m[1])) {
+                    foreach (explode("\n", $m[1]) as $line) {
+                        if (preg_match('/^SIGNAL_CLI_URL="(.*)"/', trim($line), $mv)) {
+                            $url = $mv[1];
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 if (empty($url)) {
