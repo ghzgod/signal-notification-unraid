@@ -1,0 +1,91 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE PLUGIN [
+<!ENTITY name "signal-notification">
+<!ENTITY author "ghzgod">
+<!ENTITY version "2026.02.11">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/ghzgod/signal-notification-unraid/main/signal-notification.plg">
+<!ENTITY source "/boot/config/plugins/&name;/&name;">
+<!ENTITY MD5 "f7b60f93dcf4ccc0118c291967d3c6b5">
+]>
+<PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" min="6.12.0" support="https://github.com/ghzgod/signal-notification-unraid/issues">
+
+<CHANGES>
+##Signal Notification Agent for Unraid
+
+###&version;
+- Initial release
+- Notification agent for Unraid's built-in notification system
+- Settings page with dynamic group selection via signal-cli JSON-RPC API
+- Create new Signal groups directly from the Unraid UI
+- Test connection and send test messages from Settings
+- Supports any signal-cli instance (local or remote)
+
+</CHANGES>
+
+<!--
+Signal Notification Agent for Unraid
+Send Unraid system notifications to Signal groups via signal-cli.
+
+Requires a running signal-cli instance with the JSON-RPC API enabled.
+See: https://github.com/AsamK/signal-cli
+-->
+
+<!-- PRE-INSTALL SCRIPT -->
+<FILE Run="/bin/bash">
+<INLINE>
+# Remove old package if MD5 doesn't match
+MD5=$(md5sum &source;.txz 2>/dev/null | grep -Po '^\S+')
+if [[ $MD5 != &MD5; ]]; then
+  rm -f &source;*.txz
+fi
+
+# Create config directory
+mkdir -p /boot/config/plugins/&name;
+</INLINE>
+</FILE>
+
+<!-- SOURCE PACKAGE -->
+<FILE Name="&source;.txz" Run="upgradepkg --install-new --reinstall">
+<URL>https://raw.githubusercontent.com/ghzgod/signal-notification-unraid/main/release/&name;.txz</URL>
+<MD5>&MD5;</MD5>
+</FILE>
+
+<!-- POST-INSTALL SCRIPT -->
+<FILE Run="/bin/bash">
+<INLINE>
+echo ""
+echo "-----------------------------------------------------------"
+echo " Signal Notification Agent for Unraid"
+echo " Version: &version;"
+echo ""
+echo " Configure at: Settings > Notifications > Signal"
+echo "-----------------------------------------------------------"
+echo ""
+</INLINE>
+</FILE>
+
+<!-- REMOVE SCRIPT -->
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+# Remove plugin files
+removepkg &name;
+
+# Remove notification agent scripts (enabled and disabled)
+rm -f /boot/config/plugins/dynamix/notifications/agents/Signal.sh
+rm -f /boot/config/plugins/dynamix/notifications/agents-disabled/Signal.sh
+
+# Remove config (keep config on flash for reinstall)
+# To fully remove, user can delete /boot/config/plugins/signal-notification/
+
+echo ""
+echo "-----------------------------------------------------------"
+echo " Signal Notification Agent has been removed."
+echo " Configuration preserved at:"
+echo "   /boot/config/plugins/&name;/signal.cfg"
+echo " Delete that folder to fully remove all settings."
+echo "-----------------------------------------------------------"
+echo ""
+</INLINE>
+</FILE>
+
+</PLUGIN>

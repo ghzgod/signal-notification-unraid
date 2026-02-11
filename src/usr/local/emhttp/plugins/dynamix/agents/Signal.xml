@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+  <Agent>
+    <Name>Signal</Name>
+    <Variables>
+      <Variable Help="Specify the fields which are included in the title of the notification." Desc="Notification Title" Default="$SUBJECT">TITLE</Variable>
+      <Variable Help="Specify the fields which are included in the message body of the notification." Desc="Notification Message" Default="$DESCRIPTION">MESSAGE</Variable>
+    </Variables>
+    <Script>
+      <![CDATA[
+      #!/bin/bash
+      ############
+      {0}
+      ############
+
+      SCRIPTNAME=$(basename "$0")
+      LOG="/var/log/notify_${SCRIPTNAME%.*}"
+
+      CFG="/boot/config/plugins/signal-notification/signal.cfg"
+      if [[ ! -f "$CFG" ]]; then
+        echo "$(date) Signal notification plugin not configured. Please visit Settings > Notifications > Signal to set up." >> "$LOG"
+        exit 1
+      fi
+
+      source "$CFG"
+
+      if [[ -z "$SIGNAL_CLI_URL" ]] || [[ -z "$GROUP_ID" ]]; then
+        echo "$(date) Signal-CLI URL or Group ID not configured." >> "$LOG"
+        exit 1
+      fi
+
+      # Set defaults for quick testing
+      [[ -z "${EVENT}" ]] && EVENT='Unraid Status'
+      [[ -z "${SUBJECT}" ]] && SUBJECT='Notification'
+      [[ -z "${DESCRIPTION}" ]] && DESCRIPTION='No description'
+      [[ -z "${IMPORTANCE}" ]] && IMPORTANCE='normal'
+      [[ -z "${TIMESTAMP}" ]] && TIMESTAMP=$(date +%s)
+
+      FULL_MESSAGE="$(hostname): ${TITLE}
+${MESSAGE}"
+
+      PAYLOAD=$(jq -n --arg gid "$GROUP_ID" --arg msg "$FULL_MESSAGE" \
+        '{"jsonrpc":"2.0","method":"send","params":{"groupId":$gid,"message":$msg},"id":1}')
+
+      MAX=3
+      for ((i = 1; i <= "$MAX"; i++)); do
+        RET=$(curl -s -X POST "${SIGNAL_CLI_URL}/api/v1/rpc" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" 2>&1)
+        if echo "$RET" | jq -e '.result.results[0].type == "SUCCESS"' > /dev/null 2>&1; then
+          break
+        fi
+        {
+          date
+          echo "attempt ${i} of ${MAX}"
+          echo "$RET"
+        } >> "$LOG"
+        [[ "$i" -eq "$MAX" ]] && logger -t "$SCRIPTNAME" -- "Failed sending Signal notification" && break
+        sleep 2
+      done
+      ]]>
+    </Script>
+  </Agent>
