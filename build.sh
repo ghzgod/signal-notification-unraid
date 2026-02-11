@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION=$(date +%Y.%m.%d.%H%M)
+VERSION=$(date +%Y.%m.%d)
 PKG="signal-notification"
 OUT="release"
 
