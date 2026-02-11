@@ -3,9 +3,20 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION=$(date +%Y.%m.%d)
+DATE=$(date +%Y.%m.%d)
 PKG="signal-notification"
 OUT="release"
+
+# Auto-increment build number: YYYY.MM.DD.1, .2, .3, etc.
+CURRENT=$(grep -oP '<!ENTITY version "\K[^"]+' "${PKG}.plg" 2>/dev/null || echo "")
+if [[ "$CURRENT" == "${DATE}"* ]]; then
+  # Same date — increment the suffix
+  SUFFIX=$(echo "$CURRENT" | grep -oP '\.\d+$' | tr -d '.' || echo "0")
+  SUFFIX=$((SUFFIX + 1))
+else
+  SUFFIX=1
+fi
+VERSION="${DATE}.${SUFFIX}"
 
 mkdir -p "$OUT"
 
