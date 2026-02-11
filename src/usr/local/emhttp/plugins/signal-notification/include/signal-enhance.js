@@ -49,8 +49,33 @@ $(function() {
   gidInput.replaceWith(select);
 
   var loadBtn = $('<input type="button" value="Load Groups" style="margin-left:8px;">');
+  var sendTestBtn = $('<input type="button" value="Send Test" style="margin-left:4px;">');
   var createBtn = $('<input type="button" value="New Group" style="margin-left:4px;">');
-  select.after(createBtn).after(loadBtn);
+  var groupStatusDiv = $('<div class="signal-group-result" style="margin-top:4px;"></div>');
+  select.after(createBtn).after(sendTestBtn).after(loadBtn);
+  select.parent().append(groupStatusDiv);
+
+  function setGroupStatus(msg, ok) {
+    groupStatusDiv.text(msg).removeClass('green red').addClass(ok ? 'green' : 'red');
+    if (ok) setTimeout(function(){ groupStatusDiv.fadeOut(function(){ $(this).text('').removeClass('green red').show(); }); }, 5000);
+  }
+
+  sendTestBtn.on('click', function() {
+    var url = urlInput.val().trim();
+    var gid = select.val();
+    if (!url) { setGroupStatus('Enter Signal-CLI URL first', false); return; }
+    if (!gid) { setGroupStatus('Select a group first', false); return; }
+    groupStatusDiv.removeClass('green red').text('Sending...');
+    $.post(apiUrl, {action:'sendTest', url:url, groupId:gid}, function(data) {
+      if (data.success) {
+        setGroupStatus(data.message, true);
+      } else {
+        setGroupStatus(data.error || data.message || 'Send failed', false);
+      }
+    }, 'json').fail(function() {
+      setGroupStatus('Failed to reach backend', false);
+    });
+  });
 
   // --- Create Group UI (hidden by default) ---
   var createDiv = $('<div style="display:none;margin-top:8px;">' +
