@@ -1,6 +1,6 @@
 /* Signal Notification Agent - UI enhancer
- * Upgrades the GROUP_ID text input into a dynamic dropdown
- * and adds action buttons to the bottom row.
+ * Upgrades the GROUP_ID text input into a dynamic dropdown.
+ * Auto-tests connection and loads groups when URL changes.
  */
 $(function() {
   var form = $('form[name="Signal"]');
@@ -12,13 +12,13 @@ $(function() {
 
   var apiUrl = '/plugins/signal-notification/include/SignalGroupAPI.php';
 
-  // --- Replace GROUP_ID text input with select dropdown (no inline buttons) ---
+  // --- Replace GROUP_ID text input with select dropdown ---
   var currentVal = gidInput.val();
   var select = $('<select name="GROUP_ID" class="variable" style="min-width:300px;"></select>');
   if (currentVal) {
     select.append($('<option>').val(currentVal).text(currentVal + ' (saved)'));
   } else {
-    select.append('<option value="">-- Load groups first --</option>');
+    select.append('<option value="">-- Enter URL above --</option>');
   }
   gidInput.replaceWith(select);
 
@@ -31,17 +31,14 @@ $(function() {
     feedback.text(msg).removeClass('green red').addClass(ok ? 'green' : 'red');
   }
 
-  // --- Add our buttons to the bottom row alongside Apply/Done ---
+  // --- Add only New Group button to bottom row ---
   var bottomDl = form.find('dl:last');
   bottomDl.css('text-align', 'center');
   var bottomDd = bottomDl.find('dd');
-  var testConnBtn = $('<input type="button" value="Test Connection">');
-  var loadBtn = $('<input type="button" value="Load Groups">');
-  var sendTestBtn = $('<input type="button" value="Send Test">');
   var createBtn = $('<input type="button" value="New Group">');
-  bottomDd.append(testConnBtn).append(loadBtn).append(sendTestBtn).append(createBtn);
+  bottomDd.append(createBtn);
 
-  // --- Create Group UI (hidden, appended after buttons) ---
+  // --- Create Group UI (hidden) ---
   var createDiv = $('<div style="display:none;margin-top:8px;">' +
     '<input type="text" id="signal-new-name" placeholder="Group name" style="width:180px;margin-right:4px;">' +
     '<input type="text" id="signal-new-members" placeholder="+1234567890,+0987... (optional)" style="width:250px;margin-right:4px;">' +
@@ -49,42 +46,6 @@ $(function() {
     '<input type="button" value="Cancel" id="signal-create-cancel" style="margin-left:4px;">' +
     '</div>');
   bottomDd.append(createDiv);
-
-  // --- Button handlers ---
-  testConnBtn.on('click', function() {
-    var url = urlInput.val().trim();
-    if (!url) { showFeedback('Enter URL first', false); return; }
-    feedback.removeClass('green red').text('Testing...');
-    $.post(apiUrl, {action:'test', url:url}, function(data) {
-      if (data.success) {
-        showFeedback(data.message, true);
-        loadGroups();
-      } else {
-        showFeedback(data.message || 'Connection failed', false);
-      }
-    }, 'json').fail(function() {
-      showFeedback('Failed to reach Unraid backend', false);
-    });
-  });
-
-  loadBtn.on('click', function() { loadGroups(); });
-
-  sendTestBtn.on('click', function() {
-    var url = urlInput.val().trim();
-    var gid = select.val();
-    if (!url) { showFeedback('Enter Signal-CLI URL first', false); return; }
-    if (!gid) { showFeedback('Select a group first', false); return; }
-    feedback.removeClass('green red').text('Sending...');
-    $.post(apiUrl, {action:'sendTest', url:url, groupId:gid}, function(data) {
-      if (data.success) {
-        showFeedback(data.message, true);
-      } else {
-        showFeedback(data.error || data.message || 'Send failed', false);
-      }
-    }, 'json').fail(function() {
-      showFeedback('Failed to reach backend', false);
-    });
-  });
 
   createBtn.on('click', function() { createDiv.slideToggle(); });
   createDiv.find('#signal-create-cancel').on('click', function() { createDiv.slideUp(); });
@@ -104,6 +65,37 @@ $(function() {
         loadGroups(data.groupId);
       }
     }, 'json');
+  });
+
+  // --- Test connection and load groups ---
+  var testTimer = null;
+  function testAndLoad() {
+    var url = urlInput.val().trim();
+    if (!url) {
+      feedback.text('').removeClass('green red');
+      select.empty().append('<option value="">-- Enter URL above --</option>');
+      return;
+    }
+    feedback.removeClass('green red').text('Connecting...');
+    select.empty().append('<option value="">Loading...</option>');
+    $.post(apiUrl, {action:'test', url:url}, function(data) {
+      if (data.success) {
+        showFeedback(data.message, true);
+        loadGroups();
+      } else {
+        showFeedback(data.message || 'Connection failed', false);
+        select.empty().append('<option value="">Connection failed</option>');
+      }
+    }, 'json').fail(function() {
+      showFeedback('Failed to reach Unraid backend', false);
+      select.empty().append('<option value="">Failed to connect</option>');
+    });
+  }
+
+  // Auto-test when URL field changes (debounced)
+  urlInput.on('change', function() {
+    clearTimeout(testTimer);
+    testTimer = setTimeout(testAndLoad, 300);
   });
 
   // --- Load groups function ---
@@ -129,14 +121,9 @@ $(function() {
     });
   }
 
-  // Auto-test and load groups on page init if URL is set
+  // Auto-test and load on page init if URL is set
   var initUrl = urlInput.val().trim();
   if (initUrl) {
-    $.post(apiUrl, {action:'test', url:initUrl}, function(data) {
-      if (data.success) {
-        showFeedback(data.message, true);
-        loadGroups();
-      }
-    }, 'json');
+    testAndLoad();
   }
 });
