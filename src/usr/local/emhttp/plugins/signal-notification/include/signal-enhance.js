@@ -31,9 +31,23 @@ $(function() {
     feedback.text(msg).removeClass('green red').addClass(ok ? 'green' : 'red');
   }
 
+  // --- Replace Delete button with Reset ---
+  var deleteBtn = form.find('input[value="Delete"]');
+  if (deleteBtn.length) {
+    var resetBtn = $('<input type="button" value="Reset">');
+    resetBtn.attr('class', deleteBtn.attr('class'));
+    deleteBtn.replaceWith(resetBtn);
+    resetBtn.on('click', function() {
+      urlInput.val('');
+      select.empty().append('<option value="">-- Enter URL above --</option>');
+      form.find('select[name="service"]').val('0');
+      feedback.text('').removeClass('green red');
+      showFeedback('Settings cleared. Click Apply to save.', true);
+    });
+  }
+
   // --- Add only New Group button to bottom row ---
   var bottomDl = form.find('dl:last');
-  bottomDl.css('text-align', 'center');
   var bottomDd = bottomDl.find('dd');
   var createBtn = $('<input type="button" value="New Group">');
   bottomDd.append(createBtn);
