@@ -1,6 +1,6 @@
 Menu="Notifications:4"
 Title="Signal"
-Tag="comment"
+Icon="signal.png"
 ---
 <?PHP
 /* Signal Notification Plugin - Settings Page
