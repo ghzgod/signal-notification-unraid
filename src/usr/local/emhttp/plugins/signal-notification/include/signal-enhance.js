@@ -12,24 +12,29 @@ $(function() {
 
   var apiUrl = '/plugins/signal-notification/include/SignalGroupAPI.php';
 
-  // --- Add Test Connection button next to URL input ---
-  var statusSpan = $('<span class="signal-conn-status" style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:0.9em;margin-left:8px;">Not tested</span>');
+  // --- Add Test Connection button and status below URL input ---
   var testBtn = $('<input type="button" value="Test Connection" style="margin-left:8px;">');
-  urlInput.after(statusSpan).after(testBtn);
+  var statusDiv = $('<div class="signal-conn-result" style="margin-top:4px;"></div>');
+  urlInput.after(testBtn);
+  urlInput.closest('dd').append(statusDiv);
+
+  function setStatus(msg, ok) {
+    statusDiv.text(msg).removeClass('green red').addClass(ok ? 'green' : 'red');
+  }
 
   testBtn.on('click', function() {
     var url = urlInput.val().trim();
-    if (!url) { statusSpan.css({background:'#f44336',color:'#fff'}).text('Enter URL first'); return; }
-    statusSpan.css({background:'#FF9800',color:'#fff'}).text('Testing...');
+    if (!url) { setStatus('Enter URL first', false); return; }
+    statusDiv.removeClass('green red').text('Testing...');
     $.post(apiUrl, {action:'test', url:url}, function(data) {
       if (data.success) {
-        statusSpan.css({background:'#4CAF50',color:'#fff'}).text('Connected');
+        setStatus(data.message, true);
         loadGroups();
       } else {
-        statusSpan.css({background:'#f44336',color:'#fff'}).text('Failed');
+        setStatus(data.message || 'Connection failed', false);
       }
     }, 'json').fail(function() {
-      statusSpan.css({background:'#f44336',color:'#fff'}).text('Error');
+      setStatus('Failed to reach Unraid backend', false);
     });
   });
 
@@ -39,7 +44,7 @@ $(function() {
   if (currentVal) {
     select.append($('<option>').val(currentVal).text(currentVal + ' (saved)'));
   } else {
-    select.append($('<option value="">-- Load groups first --</option>'));
+    select.append('<option value="">-- Load groups first --</option>');
   }
   gidInput.replaceWith(select);
 
@@ -103,10 +108,9 @@ $(function() {
   // Auto-load groups on page init if URL is set
   var initUrl = urlInput.val().trim();
   if (initUrl) {
-    // Quick connection test then load groups
     $.post(apiUrl, {action:'test', url:initUrl}, function(data) {
       if (data.success) {
-        statusSpan.css({background:'#4CAF50',color:'#fff'}).text('Connected');
+        setStatus(data.message, true);
         loadGroups();
       }
     }, 'json');
