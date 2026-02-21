@@ -1,6 +1,5 @@
 /* Signal Notification Agent - UI enhancer
- * Upgrades the GROUP_ID text input into a dynamic dropdown.
- * Auto-tests connection and loads groups when URL changes.
+ * Auto-discovers signal-cli containers and upgrades GROUP_ID to a dropdown.
  */
 $(function() {
   var form = $('form[name="Signal"]');
@@ -38,13 +37,32 @@ $(function() {
     resetBtn.attr('class', deleteBtn.attr('class'));
     deleteBtn.replaceWith(resetBtn);
     resetBtn.on('click', function() {
-      urlInput.val('');
+      urlInput.val('').prop('readonly', false);
+      instanceSelect.val('');
       select.empty().append('<option value="">-- Enter URL above --</option>');
       form.find('select[name="service"]').val('0');
       feedback.text('').removeClass('green red');
       showFeedback('Settings cleared. Click Apply to save.', true);
     });
   }
+
+  // --- Add instance picker above URL input ---
+  var urlDt = urlInput.closest('dl').find('dt');
+  var urlDd = urlInput.closest('dd');
+  var instanceSelect = $('<select id="signal-instance" style="min-width:300px;margin-bottom:4px;"></select>');
+  instanceSelect.append('<option value="">Scanning for signal-cli...</option>');
+  var instanceRow = $('<dl><dt>Detected Instances</dt><dd></dd></dl>');
+  instanceRow.find('dd').append(instanceSelect);
+  urlInput.closest('dl').before(instanceRow);
+
+  // When user picks an instance, populate URL and trigger test
+  instanceSelect.on('change', function() {
+    var picked = $(this).val();
+    if (picked) {
+      urlInput.val(picked);
+      testAndLoad();
+    }
+  });
 
   // --- Add only New Group button to bottom row ---
   var bottomDl = form.find('dl:last');
@@ -136,9 +154,40 @@ $(function() {
     });
   }
 
-  // Auto-test and load on page init if URL is set
-  var initUrl = urlInput.val().trim();
-  if (initUrl) {
-    testAndLoad();
-  }
+  // --- Auto-discover signal-cli instances on page load ---
+  var savedUrl = urlInput.val().trim();
+  $.post(apiUrl, {action:'discover'}, function(data) {
+    var instances = data.instances || [];
+    instanceSelect.empty();
+    if (instances.length === 0) {
+      instanceSelect.append('<option value="">No signal-cli containers found</option>');
+      // If user already has a saved URL, still test it
+      if (savedUrl) testAndLoad();
+      return;
+    }
+    if (instances.length === 1) {
+      // Single instance: auto-fill and connect
+      var inst = instances[0];
+      var label = inst.name + ' (' + inst.image + ') — port ' + inst.port;
+      instanceSelect.append($('<option>').val(inst.url).text(label));
+      urlInput.val(inst.url);
+      testAndLoad();
+    } else {
+      // Multiple instances: let user pick
+      instanceSelect.append('<option value="">-- Select a signal-cli instance --</option>');
+      $.each(instances, function(i, inst) {
+        var label = inst.name + ' (' + inst.image + ') — port ' + inst.port;
+        var opt = $('<option>').val(inst.url).text(label);
+        // Pre-select if matches saved URL
+        if (inst.url === savedUrl) opt.attr('selected', true);
+        instanceSelect.append(opt);
+      });
+      // If saved URL matches one of the instances, auto-test
+      if (savedUrl) testAndLoad();
+    }
+  }, 'json').fail(function() {
+    instanceSelect.empty().append('<option value="">Discovery failed</option>');
+    // Fall back to saved URL
+    if (savedUrl) testAndLoad();
+  });
 });
