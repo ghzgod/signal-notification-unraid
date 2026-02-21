@@ -22,11 +22,11 @@ $(function() {
   }
 
   // --- Fix vertical alignment of dropdownchecklist widgets ---
-  // Unraid's dropdownchecklist creates wrapper divs that don't align with dt baseline.
-  // Nudge the dt labels for Title/Message rows to align with the widget text.
-  $('<style>')
-    .text('form[name="Signal"] dl .ui-dropdownchecklist { vertical-align: baseline; }')
-    .appendTo('head');
+  // Unraid's dropdownchecklist replaces <select> with wrapper divs that break baseline
+  // alignment. Find those rows and switch to center alignment.
+  setTimeout(function() {
+    form.find('.ui-dropdownchecklist-selector-wrapper').closest('dl').css('align-items', 'center');
+  }, 100);
 
   // --- Replace GROUP_ID text input with select dropdown ---
   var currentVal = gidInput.val();
