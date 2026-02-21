@@ -64,13 +64,18 @@ $(function() {
     }
   });
 
-  // --- Add only New Group button to bottom row ---
+  // --- Add New Group button inline with Apply/Reset buttons ---
   var bottomDl = form.find('dl:last');
   var bottomDd = bottomDl.find('dd');
   var createBtn = $('<input type="button" value="New Group">');
+  // Match the style of the existing buttons (Apply, Reset, Send Test)
+  var existingBtn = bottomDd.find('input[type="button"],input[type="submit"]').first();
+  if (existingBtn.length) {
+    createBtn.attr('class', existingBtn.attr('class') || '');
+  }
   bottomDd.append(createBtn);
 
-  // --- Create Group UI (hidden) ---
+  // --- Create Group UI (hidden, below button row) ---
   var createDiv = $('<div style="display:none;margin-top:8px;">' +
     '<input type="text" id="signal-new-name" placeholder="Group name" style="width:180px;margin-right:4px;">' +
     '<input type="text" id="signal-new-members" placeholder="+1234567890,+0987... (optional)" style="width:250px;margin-right:4px;">' +
