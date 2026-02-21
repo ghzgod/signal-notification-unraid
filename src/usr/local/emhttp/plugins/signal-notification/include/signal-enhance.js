@@ -68,12 +68,19 @@ $(function() {
   var bottomDl = form.find('dl:last');
   var bottomDd = bottomDl.find('dd');
   var createBtn = $('<input type="button" value="New Group">');
-  // Match the style of the existing buttons (Apply, Reset, Send Test)
+  // Match the style of the existing inline buttons (Apply, Done, Reset, Test)
   var existingBtn = bottomDd.find('input[type="button"],input[type="submit"]').first();
   if (existingBtn.length) {
     createBtn.attr('class', existingBtn.attr('class') || '');
+    createBtn.css({display:'inline-block', width:existingBtn.outerWidth()+'px', 'margin-top':'0'});
   }
-  bottomDd.append(createBtn);
+  // Insert after the last button, not at the end of the dd (which causes block layout)
+  var lastBtn = bottomDd.find('input[type="button"],input[type="submit"]').last();
+  if (lastBtn.length) {
+    lastBtn.after(createBtn);
+  } else {
+    bottomDd.append(createBtn);
+  }
 
   // --- Create Group UI (hidden, below button row) ---
   var createDiv = $('<div style="display:none;margin-top:8px;">' +
