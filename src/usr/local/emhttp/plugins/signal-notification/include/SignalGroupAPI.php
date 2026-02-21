@@ -169,7 +169,47 @@ function getApiType($cfgFile) {
     ];
 }
 
+// --- Discover signal-cli Docker containers on this host ---
+function discoverInstances() {
+    $lines = [];
+    exec("docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null", $lines);
+    $instances = [];
+    foreach ($lines as $line) {
+        $parts = explode("\t", $line);
+        if (count($parts) < 3) continue;
+        [$name, $image, $ports] = $parts;
+        // Match signal-cli images (asamk or bbernhard)
+        if (stripos($image, 'signal-cli') === false) continue;
+        // Extract host:containerPort mappings, e.g. "0.0.0.0:9544->8080/tcp, :::9544->8080/tcp"
+        if (preg_match_all('/(?:[\d.]+):(\d+)->(\d+)/', $ports, $matches, PREG_SET_ORDER)) {
+            $seen = [];
+            foreach ($matches as $match) {
+                $hostPort = $match[1];
+                $containerPort = $match[2];
+                // Avoid duplicates (IPv4 and IPv6 both listed)
+                $key = "$hostPort:$containerPort";
+                if (isset($seen[$key])) continue;
+                $seen[$key] = true;
+                // Only include mappings to the HTTP API port (8080)
+                if ($containerPort !== '8080') continue;
+                $instances[] = [
+                    'name'  => $name,
+                    'image' => $image,
+                    'url'   => "http://localhost:$hostPort",
+                    'port'  => (int)$hostPort,
+                ];
+            }
+        }
+    }
+    return $instances;
+}
+
 switch ($action) {
+    case 'discover':
+        $instances = discoverInstances();
+        echo json_encode(['instances' => $instances]);
+        break;
+
     case 'test':
         $detect = detectApiType($url);
         if (isset($detect['error']) && empty($detect['type'])) {
