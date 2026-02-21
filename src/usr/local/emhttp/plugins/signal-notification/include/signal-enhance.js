@@ -165,19 +165,25 @@ $(function() {
       if (savedUrl) testAndLoad();
       return;
     }
+    function instanceLabel(inst) {
+      var parts = inst.name;
+      if (inst.ip) parts += ' — ' + inst.ip + ':' + inst.port;
+      else parts += ' — port ' + inst.port;
+      if (inst.network) parts += ' (' + inst.network + ')';
+      return parts;
+    }
+
     if (instances.length === 1) {
       // Single instance: auto-fill and connect
       var inst = instances[0];
-      var label = inst.name + ' (' + inst.image + ') — port ' + inst.port;
-      instanceSelect.append($('<option>').val(inst.url).text(label));
+      instanceSelect.append($('<option>').val(inst.url).text(instanceLabel(inst)));
       urlInput.val(inst.url);
       testAndLoad();
     } else {
       // Multiple instances: let user pick
       instanceSelect.append('<option value="">-- Select a signal-cli instance --</option>');
       $.each(instances, function(i, inst) {
-        var label = inst.name + ' (' + inst.image + ') — port ' + inst.port;
-        var opt = $('<option>').val(inst.url).text(label);
+        var opt = $('<option>').val(inst.url).text(instanceLabel(inst));
         // Pre-select if matches saved URL
         if (inst.url === savedUrl) opt.attr('selected', true);
         instanceSelect.append(opt);
