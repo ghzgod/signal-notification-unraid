@@ -10,6 +10,15 @@ $(function() {
   if (!urlInput.length || !gidInput.length) return;
 
   var apiUrl = '/plugins/signal-notification/include/SignalGroupAPI.php';
+  var detectedUrl = ''; // URL from auto-discovery
+
+  // Add placeholder to URL field to indicate it's optional
+  urlInput.attr('placeholder', 'Optional — overrides detected instance');
+
+  // --- Helper: get the effective URL (override takes priority, then detected) ---
+  function getActiveUrl() {
+    return urlInput.val().trim() || detectedUrl;
+  }
 
   // --- Replace GROUP_ID text input with select dropdown ---
   var currentVal = gidInput.val();
@@ -17,7 +26,7 @@ $(function() {
   if (currentVal) {
     select.append($('<option>').val(currentVal).text(currentVal + ' (saved)'));
   } else {
-    select.append('<option value="">-- Enter URL above --</option>');
+    select.append('<option value="">-- waiting for detection --</option>');
   }
   gidInput.replaceWith(select);
 
@@ -37,9 +46,10 @@ $(function() {
     resetBtn.attr('class', deleteBtn.attr('class'));
     deleteBtn.replaceWith(resetBtn);
     resetBtn.on('click', function() {
-      urlInput.val('').prop('readonly', false);
+      urlInput.val('');
       instanceSelect.val('');
-      select.empty().append('<option value="">-- Enter URL above --</option>');
+      detectedUrl = '';
+      select.empty().append('<option value="">-- waiting for detection --</option>');
       form.find('select[name="service"]').val('0');
       feedback.text('').removeClass('green red');
       showFeedback('Settings cleared. Click Apply to save.', true);
@@ -47,19 +57,17 @@ $(function() {
   }
 
   // --- Add instance picker above URL input ---
-  var urlDt = urlInput.closest('dl').find('dt');
-  var urlDd = urlInput.closest('dd');
   var instanceSelect = $('<select id="signal-instance" style="min-width:300px;margin-bottom:4px;"></select>');
   instanceSelect.append('<option value="">Scanning for signal-cli...</option>');
   var instanceRow = $('<dl><dt>Detected Instances</dt><dd></dd></dl>');
   instanceRow.find('dd').append(instanceSelect);
   urlInput.closest('dl').before(instanceRow);
 
-  // When user picks an instance, populate URL and trigger test
+  // When user picks an instance, use it and trigger test
   instanceSelect.on('change', function() {
     var picked = $(this).val();
     if (picked) {
-      urlInput.val(picked);
+      detectedUrl = picked;
       testAndLoad();
     }
   });
@@ -68,13 +76,11 @@ $(function() {
   var bottomDl = form.find('dl:last');
   var bottomDd = bottomDl.find('dd');
   var createBtn = $('<input type="button" value="New Group">');
-  // Match the style of the existing inline buttons (Apply, Done, Reset, Test)
   var existingBtn = bottomDd.find('input[type="button"],input[type="submit"]').first();
   if (existingBtn.length) {
     createBtn.attr('class', existingBtn.attr('class') || '');
     createBtn.css({display:'inline-block', width:existingBtn.outerWidth()+'px', 'margin-top':'0'});
   }
-  // Insert after the last button, not at the end of the dd (which causes block layout)
   var lastBtn = bottomDd.find('input[type="button"],input[type="submit"]').last();
   if (lastBtn.length) {
     lastBtn.after(createBtn);
@@ -94,10 +100,10 @@ $(function() {
   createBtn.on('click', function() { createDiv.slideToggle(); });
   createDiv.find('#signal-create-cancel').on('click', function() { createDiv.slideUp(); });
   createDiv.find('#signal-create-go').on('click', function() {
-    var url = urlInput.val().trim();
+    var url = getActiveUrl();
     var name = createDiv.find('#signal-new-name').val().trim();
     var members = createDiv.find('#signal-new-members').val().trim();
-    if (!name) return;
+    if (!url || !name) return;
     $.post(apiUrl, {action:'createGroup', url:url, name:name, members:members}, function(data) {
       if (data.error) {
         showFeedback('Failed to create group: ' + data.error, false);
@@ -114,10 +120,10 @@ $(function() {
   // --- Test connection and load groups ---
   var testTimer = null;
   function testAndLoad() {
-    var url = urlInput.val().trim();
+    var url = getActiveUrl();
     if (!url) {
       feedback.text('').removeClass('green red');
-      select.empty().append('<option value="">-- Enter URL above --</option>');
+      select.empty().append('<option value="">-- waiting for detection --</option>');
       return;
     }
     feedback.removeClass('green red').text('Connecting...');
@@ -137,7 +143,7 @@ $(function() {
     });
   }
 
-  // Auto-test when URL field changes (debounced)
+  // Auto-test when URL override changes (debounced)
   urlInput.on('change', function() {
     clearTimeout(testTimer);
     testTimer = setTimeout(testAndLoad, 300);
@@ -145,7 +151,7 @@ $(function() {
 
   // --- Load groups function ---
   function loadGroups(selectId) {
-    var url = urlInput.val().trim();
+    var url = getActiveUrl();
     if (!url) return;
     select.empty().append('<option value="">Loading...</option>');
     $.post(apiUrl, {action:'listGroups', url:url}, function(data) {
@@ -171,41 +177,41 @@ $(function() {
   $.post(apiUrl, {action:'discover'}, function(data) {
     var instances = data.instances || [];
     instanceSelect.empty();
-    if (instances.length === 0) {
-      instanceSelect.append('<option value="">No signal-cli containers found</option>');
-      // If user already has a saved URL, still test it
-      if (savedUrl) testAndLoad();
-      return;
-    }
+
     function instanceLabel(inst) {
       var parts = inst.name;
-      if (inst.ip) parts += ' — ' + inst.ip + ':' + inst.port;
-      else parts += ' — port ' + inst.port;
+      if (inst.ip) parts += ' \u2014 ' + inst.ip + ':' + inst.port;
+      else parts += ' \u2014 port ' + inst.port;
       if (inst.network) parts += ' (' + inst.network + ')';
       return parts;
     }
 
+    if (instances.length === 0) {
+      instanceSelect.append('<option value="">No signal-cli containers found</option>');
+      // If user has a manual override, test that
+      if (savedUrl) testAndLoad();
+      return;
+    }
+
     if (instances.length === 1) {
-      // Single instance: auto-fill and connect
       var inst = instances[0];
       instanceSelect.append($('<option>').val(inst.url).text(instanceLabel(inst)));
-      urlInput.val(inst.url);
+      detectedUrl = inst.url;
       testAndLoad();
     } else {
-      // Multiple instances: let user pick
       instanceSelect.append('<option value="">-- Select a signal-cli instance --</option>');
       $.each(instances, function(i, inst) {
         var opt = $('<option>').val(inst.url).text(instanceLabel(inst));
-        // Pre-select if matches saved URL
-        if (inst.url === savedUrl) opt.attr('selected', true);
+        if (inst.url === savedUrl) {
+          opt.attr('selected', true);
+          detectedUrl = inst.url;
+        }
         instanceSelect.append(opt);
       });
-      // If saved URL matches one of the instances, auto-test
-      if (savedUrl) testAndLoad();
+      if (detectedUrl || savedUrl) testAndLoad();
     }
   }, 'json').fail(function() {
     instanceSelect.empty().append('<option value="">Discovery failed</option>');
-    // Fall back to saved URL
     if (savedUrl) testAndLoad();
   });
 });

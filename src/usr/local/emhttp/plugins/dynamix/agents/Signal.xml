@@ -2,7 +2,7 @@
   <Agent>
     <Name>Signal</Name>
     <Variables>
-      <Variable Help="The full URL of the signal-cli API. Typically http://YOUR-SERVER-IP:8085 for asamk/signal-cli or http://YOUR-SERVER-IP:8080 for bbernhard/signal-cli-rest-api. The plugin auto-detects which API is running. [script src='/plugins/signal-notification/include/signal-enhance.js'][/script]" Desc="Signal-CLI API URL" Default="http://localhost:8085">SIGNAL_CLI_URL</Variable>
+      <Variable Help="Optional manual override. If a signal-cli container is detected above, you can leave this blank. Only fill this in if auto-detection does not find your instance (e.g. signal-cli is running on a remote server or a non-standard setup). [script src='/plugins/signal-notification/include/signal-enhance.js'][/script]" Desc="Signal-CLI URL Override" Default="">SIGNAL_CLI_URL</Variable>
       <Variable Help="The base64-encoded group ID. Use the Load Groups button to populate this from your signal-cli instance, or paste the group ID manually." Desc="Signal Group ID" Default="">GROUP_ID</Variable>
       <Variable Help="Specify the fields which are included in the title of the notification." Desc="Notification Title" Default="$SUBJECT">TITLE</Variable>
       <Variable Help="Specify the fields which are included in the message body of the notification." Desc="Notification Message" Default="$DESCRIPTION">MESSAGE</Variable>
@@ -17,18 +17,23 @@
       SCRIPTNAME=$(basename "$0")
       LOG="/var/log/notify_${SCRIPTNAME%.*}"
 
-      if [[ -z "$SIGNAL_CLI_URL" ]] || [[ -z "$GROUP_ID" ]]; then
-        echo "$(date) Signal-CLI URL or Group ID not configured." >> "$LOG"
-        exit 1
-      fi
-
-      # Read API type from config (defaults to asamk for backwards compat)
+      # Read API type and detected URL from config
       CFG="/boot/config/plugins/signal-notification/signal.cfg"
       API_TYPE="asamk"
       ACCOUNT_NUMBER=""
+      DETECTED_URL=""
       if [ -f "$CFG" ]; then
         API_TYPE=$(grep -oP 'API_TYPE="\K[^"]*' "$CFG" 2>/dev/null || echo "asamk")
         ACCOUNT_NUMBER=$(grep -oP 'ACCOUNT_NUMBER="\K[^"]*' "$CFG" 2>/dev/null || echo "")
+        DETECTED_URL=$(grep -oP 'DETECTED_URL="\K[^"]*' "$CFG" 2>/dev/null || echo "")
+      fi
+
+      # Use detected URL if SIGNAL_CLI_URL override is empty
+      [[ -z "$SIGNAL_CLI_URL" ]] && SIGNAL_CLI_URL="$DETECTED_URL"
+
+      if [[ -z "$SIGNAL_CLI_URL" ]] || [[ -z "$GROUP_ID" ]]; then
+        echo "$(date) Signal-CLI URL or Group ID not configured." >> "$LOG"
+        exit 1
       fi
 
       # Set defaults for quick testing

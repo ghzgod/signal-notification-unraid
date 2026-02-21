@@ -147,11 +147,14 @@ function detectApiType($url) {
     return ['type' => '', 'error' => 'Could not connect. Ensure signal-cli is running and the URL is correct.'];
 }
 
-// --- Save detected API type to config ---
-function saveApiType($cfgFile, $type, $account = '') {
+// --- Save detected API type and URL to config ---
+function saveApiType($cfgFile, $type, $account = '', $detectedUrl = '') {
     $cfg = @parse_ini_file($cfgFile) ?: [];
     $cfg['API_TYPE'] = $type;
     $cfg['ACCOUNT_NUMBER'] = $account;
+    if ($detectedUrl) {
+        $cfg['DETECTED_URL'] = $detectedUrl;
+    }
     $lines = [];
     foreach ($cfg as $k => $v) {
         $lines[] = "$k=\"$v\"";
@@ -268,7 +271,7 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $detect['error'], 'apiType' => $detect['type']]);
             break;
         }
-        saveApiType($cfgFile, $detect['type'], $detect['account']);
+        saveApiType($cfgFile, $detect['type'], $detect['account'], $url);
 
         if ($detect['type'] === 'bbernhard') {
             // Count groups via REST
