@@ -12,8 +12,9 @@ $(function() {
   var apiUrl = '/plugins/signal-notification/include/SignalGroupAPI.php';
   var detectedUrl = ''; // URL from auto-discovery
 
-  // Add placeholder to URL field to indicate it's optional
-  urlInput.attr('placeholder', 'Optional — overrides detected instance');
+  // Remove browser "required" validation — this field is optional when auto-detection works
+  urlInput.removeAttr('required');
+  urlInput.attr('placeholder', 'Optional \u2014 overrides detected instance');
 
   // --- Helper: get the effective URL (override takes priority, then detected) ---
   function getActiveUrl() {
@@ -57,9 +58,9 @@ $(function() {
   }
 
   // --- Add instance picker above URL input ---
-  var instanceSelect = $('<select id="signal-instance" style="min-width:300px;margin-bottom:4px;"></select>');
+  var instanceSelect = $('<select id="signal-instance" class="variable" style="min-width:300px;"></select>');
   instanceSelect.append('<option value="">Scanning for signal-cli...</option>');
-  var instanceRow = $('<dl><dt>Detected Instances</dt><dd></dd></dl>');
+  var instanceRow = $('<dl><dt>Detected Instances:</dt><dd></dd></dl>');
   instanceRow.find('dd').append(instanceSelect);
   urlInput.closest('dl').before(instanceRow);
 
@@ -72,20 +73,17 @@ $(function() {
     }
   });
 
-  // --- Add New Group button inline with Apply/Reset buttons ---
-  var bottomDl = form.find('dl:last');
-  var bottomDd = bottomDl.find('dd');
+  // --- Add New Group button inside the buttons-spaced div ---
+  var buttonsDiv = form.find('.buttons-spaced');
   var createBtn = $('<input type="button" value="New Group">');
-  var existingBtn = bottomDd.find('input[type="button"],input[type="submit"]').first();
-  if (existingBtn.length) {
-    createBtn.attr('class', existingBtn.attr('class') || '');
-    createBtn.css({display:'inline-block', width:existingBtn.outerWidth()+'px', 'margin-top':'0'});
-  }
-  var lastBtn = bottomDd.find('input[type="button"],input[type="submit"]').last();
-  if (lastBtn.length) {
-    lastBtn.after(createBtn);
+  if (buttonsDiv.length) {
+    buttonsDiv.append(createBtn);
   } else {
-    bottomDd.append(createBtn);
+    // Fallback: insert after last button
+    var lastBtn = form.find('dl:last dd input[type="button"],dl:last dd input[type="submit"]').last();
+    if (lastBtn.length) {
+      lastBtn.after(createBtn);
+    }
   }
 
   // --- Create Group UI (hidden, below button row) ---
@@ -95,7 +93,7 @@ $(function() {
     '<input type="button" value="Create" id="signal-create-go">' +
     '<input type="button" value="Cancel" id="signal-create-cancel" style="margin-left:4px;">' +
     '</div>');
-  bottomDd.append(createDiv);
+  form.find('dl:last dd').append(createDiv);
 
   createBtn.on('click', function() { createDiv.slideToggle(); });
   createDiv.find('#signal-create-cancel').on('click', function() { createDiv.slideUp(); });
@@ -179,16 +177,16 @@ $(function() {
     instanceSelect.empty();
 
     function instanceLabel(inst) {
-      var parts = inst.name;
-      if (inst.ip) parts += ' \u2014 ' + inst.ip + ':' + inst.port;
-      else parts += ' \u2014 port ' + inst.port;
-      if (inst.network) parts += ' (' + inst.network + ')';
-      return parts;
+      // Format: image — host:port
+      var img = inst.image || '';
+      // Shorten image name: "ghcr.io/asamk/signal-cli:latest" → "asamk/signal-cli"
+      var shortImg = img.replace(/^[^/]*\//, '').replace(/:.*$/, '');
+      var host = inst.ip || 'localhost';
+      return shortImg + ' \u2014 ' + host + ':' + inst.port;
     }
 
     if (instances.length === 0) {
       instanceSelect.append('<option value="">No signal-cli containers found</option>');
-      // If user has a manual override, test that
       if (savedUrl) testAndLoad();
       return;
     }
