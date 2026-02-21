@@ -171,33 +171,80 @@ function getApiType($cfgFile) {
 
 // --- Discover signal-cli Docker containers on this host ---
 function discoverInstances() {
+    // Find running containers with signal-cli in the image name
     $lines = [];
-    exec("docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null", $lines);
+    exec("docker ps --format '{{.Names}}\t{{.Image}}' 2>/dev/null", $lines);
     $instances = [];
     foreach ($lines as $line) {
         $parts = explode("\t", $line);
-        if (count($parts) < 3) continue;
-        [$name, $image, $ports] = $parts;
-        // Match signal-cli images (asamk or bbernhard)
+        if (count($parts) < 2) continue;
+        [$name, $image] = $parts;
         if (stripos($image, 'signal-cli') === false) continue;
-        // Extract host:containerPort mappings, e.g. "0.0.0.0:9544->8080/tcp, :::9544->8080/tcp"
-        if (preg_match_all('/(?:[\d.]+):(\d+)->(\d+)/', $ports, $matches, PREG_SET_ORDER)) {
-            $seen = [];
-            foreach ($matches as $match) {
-                $hostPort = $match[1];
-                $containerPort = $match[2];
-                // Avoid duplicates (IPv4 and IPv6 both listed)
-                $key = "$hostPort:$containerPort";
-                if (isset($seen[$key])) continue;
-                $seen[$key] = true;
-                // Only include mappings to the HTTP API port (8080)
-                if ($containerPort !== '8080') continue;
+
+        // Inspect container for full network details
+        $json = shell_exec("docker inspect " . escapeshellarg($name) . " 2>/dev/null");
+        $info = json_decode($json, true);
+        if (!$info || !isset($info[0])) continue;
+        $c = $info[0];
+
+        // Determine internal API port from ExposedPorts (default 8080)
+        $apiPort = '8080';
+        foreach (array_keys($c['Config']['ExposedPorts'] ?? []) as $ep) {
+            if (preg_match('/^(\d+)\/tcp$/', $ep, $m)) {
+                $apiPort = $m[1];
+                break;
+            }
+        }
+
+        $networkMode = $c['HostConfig']['NetworkMode'] ?? '';
+        $portBindings = $c['NetworkSettings']['Ports']["{$apiPort}/tcp"] ?? [];
+
+        // Strategy 1: Port mappings exist (works for bridge, custom networks with -p, etc.)
+        if (!empty($portBindings)) {
+            foreach ($portBindings as $binding) {
+                $hostIp = $binding['HostIp'] ?? '';
+                $hostPort = $binding['HostPort'] ?? '';
+                // Prefer IPv4 bindings (0.0.0.0 or empty), skip IPv6-only (::)
+                if ($hostPort && ($hostIp === '0.0.0.0' || $hostIp === '')) {
+                    $instances[] = [
+                        'name'    => $name,
+                        'image'   => $image,
+                        'url'     => "http://localhost:$hostPort",
+                        'port'    => (int)$hostPort,
+                        'network' => $networkMode,
+                    ];
+                    break; // One binding is enough
+                }
+            }
+            continue;
+        }
+
+        // Strategy 2: Host network mode — container shares host stack
+        if ($networkMode === 'host') {
+            $instances[] = [
+                'name'    => $name,
+                'image'   => $image,
+                'url'     => "http://localhost:$apiPort",
+                'port'    => (int)$apiPort,
+                'network' => 'host',
+            ];
+            continue;
+        }
+
+        // Strategy 3: Custom network without port mappings — use container's own IP
+        $networks = $c['NetworkSettings']['Networks'] ?? [];
+        foreach ($networks as $netName => $netInfo) {
+            $ip = $netInfo['IPAddress'] ?? '';
+            if (!empty($ip)) {
                 $instances[] = [
-                    'name'  => $name,
-                    'image' => $image,
-                    'url'   => "http://localhost:$hostPort",
-                    'port'  => (int)$hostPort,
+                    'name'    => $name,
+                    'image'   => $image,
+                    'url'     => "http://$ip:$apiPort",
+                    'port'    => (int)$apiPort,
+                    'network' => $netName,
+                    'ip'      => $ip,
                 ];
+                break;
             }
         }
     }
