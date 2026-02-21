@@ -7,16 +7,18 @@ DATE=$(date +%Y.%m.%d)
 PKG="signal-notification"
 OUT="release"
 
-# Auto-increment build number: YYYY.MM.DD.1, .2, .3, etc.
+# Auto-increment build number: YYYY.MM.DD.NN (zero-padded for correct string sorting)
 CURRENT=$(sed -n 's/.*<!ENTITY version "\([^"]*\)">.*/\1/p' "${PKG}.plg" 2>/dev/null || echo "")
 if [[ "$CURRENT" == "${DATE}".* ]]; then
   # Same date — increment the suffix
   SUFFIX="${CURRENT##*.}"
-  SUFFIX=$((SUFFIX + 1))
+  # Strip leading zeros for arithmetic
+  SUFFIX=$((10#$SUFFIX + 1))
 else
   SUFFIX=1
 fi
-VERSION="${DATE}.${SUFFIX}"
+# Zero-pad to 2 digits so .9 < .10 works in string comparison
+VERSION="${DATE}.$(printf '%02d' $SUFFIX)"
 
 mkdir -p "$OUT"
 
