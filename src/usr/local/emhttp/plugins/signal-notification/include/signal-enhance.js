@@ -14,12 +14,19 @@ $(function() {
 
   // Remove browser "required" validation — this field is optional when auto-detection works
   urlInput.removeAttr('required');
-  urlInput.attr('placeholder', 'Optional \u2014 overrides detected instance');
+  urlInput.attr('placeholder', 'http://host:port');
 
   // --- Helper: get the effective URL (override takes priority, then detected) ---
   function getActiveUrl() {
     return urlInput.val().trim() || detectedUrl;
   }
+
+  // --- Fix vertical alignment of dropdownchecklist widgets ---
+  // Unraid's dropdownchecklist creates wrapper divs that don't align with dt baseline.
+  // Nudge the dt labels for Title/Message rows to align with the widget text.
+  $('<style>')
+    .text('form[name="Signal"] dl .ui-dropdownchecklist { vertical-align: baseline; }')
+    .appendTo('head');
 
   // --- Replace GROUP_ID text input with select dropdown ---
   var currentVal = gidInput.val();
@@ -60,7 +67,7 @@ $(function() {
   // --- Add instance picker above URL input ---
   var instanceSelect = $('<select id="signal-instance" class="variable" style="min-width:300px;"></select>');
   instanceSelect.append('<option value="">Scanning for signal-cli...</option>');
-  var instanceRow = $('<dl><dt>Detected Instances:</dt><dd></dd></dl>');
+  var instanceRow = $('<dl><dt>Detected Instance:</dt><dd></dd></dl>');
   instanceRow.find('dd').append(instanceSelect);
   urlInput.closest('dl').before(instanceRow);
 
@@ -79,7 +86,6 @@ $(function() {
   if (buttonsDiv.length) {
     buttonsDiv.append(createBtn);
   } else {
-    // Fallback: insert after last button
     var lastBtn = form.find('dl:last dd input[type="button"],dl:last dd input[type="submit"]').last();
     if (lastBtn.length) {
       lastBtn.after(createBtn);
@@ -177,9 +183,7 @@ $(function() {
     instanceSelect.empty();
 
     function instanceLabel(inst) {
-      // Format: image — host:port
       var img = inst.image || '';
-      // Shorten image name: "ghcr.io/asamk/signal-cli:latest" → "asamk/signal-cli"
       var shortImg = img.replace(/^[^/]*\//, '').replace(/:.*$/, '');
       var host = inst.ip || 'localhost';
       return shortImg + ' \u2014 ' + host + ':' + inst.port;
@@ -195,6 +199,8 @@ $(function() {
       var inst = instances[0];
       instanceSelect.append($('<option>').val(inst.url).text(instanceLabel(inst)));
       detectedUrl = inst.url;
+      // Clear override field if it matches detected URL (leftover from before auto-detection)
+      if (savedUrl === detectedUrl) urlInput.val('');
       testAndLoad();
     } else {
       instanceSelect.append('<option value="">-- Select a signal-cli instance --</option>');
@@ -203,6 +209,8 @@ $(function() {
         if (inst.url === savedUrl) {
           opt.attr('selected', true);
           detectedUrl = inst.url;
+          // Clear override — it's now auto-detected
+          urlInput.val('');
         }
         instanceSelect.append(opt);
       });
