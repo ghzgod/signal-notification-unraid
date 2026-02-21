@@ -94,7 +94,8 @@ $(function() {
     select.empty().append('<option value="">Loading...</option>');
     $.post(apiUrl, {action:'test', url:url}, function(data) {
       if (data.success) {
-        showFeedback(data.message, true);
+        var typeLabel = data.apiType === 'bbernhard' ? 'bbernhard/signal-cli-rest-api' : 'asamk/signal-cli';
+        showFeedback(data.message + ' (' + typeLabel + ')', true);
         loadGroups();
       } else {
         showFeedback(data.message || 'Connection failed', false);

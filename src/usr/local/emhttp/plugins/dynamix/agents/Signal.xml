@@ -2,7 +2,7 @@
   <Agent>
     <Name>Signal</Name>
     <Variables>
-      <Variable Help="The full URL of the signal-cli JSON-RPC API. Typically http://YOUR-SERVER-IP:8085 if running the asamk/signal-cli Docker container with port 8085 mapped to 8080. [script src='/plugins/signal-notification/include/signal-enhance.js'][/script]" Desc="Signal-CLI API URL" Default="http://localhost:8085">SIGNAL_CLI_URL</Variable>
+      <Variable Help="The full URL of the signal-cli API. Typically http://YOUR-SERVER-IP:8085 for asamk/signal-cli or http://YOUR-SERVER-IP:8080 for bbernhard/signal-cli-rest-api. The plugin auto-detects which API is running. [script src='/plugins/signal-notification/include/signal-enhance.js'][/script]" Desc="Signal-CLI API URL" Default="http://localhost:8085">SIGNAL_CLI_URL</Variable>
       <Variable Help="The base64-encoded group ID. Use the Load Groups button to populate this from your signal-cli instance, or paste the group ID manually." Desc="Signal Group ID" Default="">GROUP_ID</Variable>
       <Variable Help="Specify the fields which are included in the title of the notification." Desc="Notification Title" Default="$SUBJECT">TITLE</Variable>
       <Variable Help="Specify the fields which are included in the message body of the notification." Desc="Notification Message" Default="$DESCRIPTION">MESSAGE</Variable>
@@ -22,6 +22,15 @@
         exit 1
       fi
 
+      # Read API type from config (defaults to asamk for backwards compat)
+      CFG="/boot/config/plugins/signal-notification/signal.cfg"
+      API_TYPE="asamk"
+      ACCOUNT_NUMBER=""
+      if [ -f "$CFG" ]; then
+        API_TYPE=$(grep -oP 'API_TYPE="\K[^"]*' "$CFG" 2>/dev/null || echo "asamk")
+        ACCOUNT_NUMBER=$(grep -oP 'ACCOUNT_NUMBER="\K[^"]*' "$CFG" 2>/dev/null || echo "")
+      fi
+
       # Set defaults for quick testing
       [[ -z "${EVENT}" ]] && EVENT='Unraid Status'
       [[ -z "${SUBJECT}" ]] && SUBJECT='Notification'
@@ -32,16 +41,31 @@
       FULL_MESSAGE="$(hostname): ${TITLE}
 ${MESSAGE}"
 
-      PAYLOAD=$(jq -n --arg gid "$GROUP_ID" --arg msg "$FULL_MESSAGE" \
-        '{"jsonrpc":"2.0","method":"send","params":{"groupId":$gid,"message":$msg},"id":1}')
-
       MAX=3
       for ((i = 1; i <= "$MAX"; i++)); do
-        RET=$(curl -s -X POST "${SIGNAL_CLI_URL}/api/v1/rpc" \
-          -H "Content-Type: application/json" \
-          -d "$PAYLOAD" 2>&1)
-        if echo "$RET" | jq -e '.result.results[0].type == "SUCCESS"' > /dev/null 2>&1; then
-          break
+        if [[ "$API_TYPE" == "bbernhard" ]]; then
+          # bbernhard/signal-cli-rest-api: POST /v2/send
+          PAYLOAD=$(jq -n --arg num "$ACCOUNT_NUMBER" --arg gid "$GROUP_ID" --arg msg "$FULL_MESSAGE" \
+            '{"number":$num,"recipients":[$gid],"message":$msg}')
+          RET=$(curl -s -w "\n%{http_code}" -X POST "${SIGNAL_CLI_URL}/v2/send" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" 2>&1)
+          HTTP_CODE=$(echo "$RET" | tail -1)
+          BODY=$(echo "$RET" | sed '$d')
+          if [[ "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
+            break
+          fi
+          RET="HTTP $HTTP_CODE: $BODY"
+        else
+          # asamk/signal-cli: JSON-RPC
+          PAYLOAD=$(jq -n --arg gid "$GROUP_ID" --arg msg "$FULL_MESSAGE" \
+            '{"jsonrpc":"2.0","method":"send","params":{"groupId":$gid,"message":$msg},"id":1}')
+          RET=$(curl -s -X POST "${SIGNAL_CLI_URL}/api/v1/rpc" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" 2>&1)
+          if echo "$RET" | jq -e '.result.results[0].type == "SUCCESS"' > /dev/null 2>&1; then
+            break
+          fi
         fi
         {
           date
