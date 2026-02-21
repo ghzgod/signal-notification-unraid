@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "signal-notification">
 <!ENTITY author "ghzgod">
-<!ENTITY version "2026.02.21.6">
+<!ENTITY version "2026.02.21.7">
 <!ENTITY launch "Settings/Notifications">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/ghzgod/signal-notification-unraid/beta/signal-notification.plg">
 <!ENTITY source "/boot/config/plugins/&name;/&name;">
-<!ENTITY MD5 "3d9e1cf2d028f30c437d6a5e83a91768">
+<!ENTITY MD5 "15893348083d19a6cbba714ecf388348">
 ]>
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="signal-notification.png" min="6.12.0" support="https://forums.unraid.net/topic/197144-signal-notification-agent/" project="https://github.com/ghzgod/signal-notification-unraid" readme="https://github.com/ghzgod/signal-notification-unraid#readme">
 
