@@ -2,8 +2,8 @@
   <Agent>
     <Name>Signal</Name>
     <Variables>
-      <Variable Help="Optional. Only needed if auto-detection above does not find your signal-cli instance (e.g. running on a remote server). [script src='/plugins/signal-notification/include/signal-enhance.js'][/script]" Desc="URL Override" Default="">SIGNAL_CLI_URL</Variable>
-      <Variable Help="The base64-encoded group ID. Use the Load Groups button to populate this from your signal-cli instance, or paste the group ID manually." Desc="Signal Group ID" Default="">GROUP_ID</Variable>
+      <Variable Help="Optional. Only needed if auto-detection above does not find your signal-cli instance (e.g. running on a remote server). [script src='/plugins/signal-notification/include/signal-enhance.js'][/script]" Desc="Manual override" Default="">SIGNAL_CLI_URL</Variable>
+      <Variable Help="The base64-encoded group ID. Use the Load Groups button to populate this from your signal-cli instance, or paste the group ID manually." Desc="Signal group" Default="">GROUP_ID</Variable>
       <Variable Help="Specify the fields which are included in the title of the notification." Desc="Notification Title" Default="$SUBJECT">TITLE</Variable>
       <Variable Help="Specify the fields which are included in the message body of the notification." Desc="Notification Message" Default="$DESCRIPTION">MESSAGE</Variable>
     </Variables>
